@@ -1,11 +1,15 @@
 #ifndef __TINY_QUEUE__
 #define __TINY_QUEUE__
 
+#include <pthread.h>
+
 typedef struct tiny_queue_t {
   struct tiny_linked_list_t* head;
   struct tiny_linked_list_t* tail;
   pthread_mutex_t mutex;
+  #ifdef TINY_QUEUE_WAKE
   pthread_cond_t wakeup;
+  #endif
 } tiny_queue_t;
 
 typedef struct tiny_linked_list_t {
@@ -24,4 +28,5 @@ void *tiny_queue_pop(tiny_queue_t *queue);
 
 // Destroy the queue with all elements
 int tiny_queue_destroy(tiny_queue_t *queue);
+
 #endif
