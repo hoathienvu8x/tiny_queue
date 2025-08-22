@@ -6,6 +6,7 @@ typedef struct tiny_queue_t {
   struct tiny_linked_list_t* tail;
   pthread_mutex_t mutex;
   pthread_cond_t wakeup;
+  int shutdown;
 } tiny_queue_t;
 
 typedef struct tiny_linked_list_t {

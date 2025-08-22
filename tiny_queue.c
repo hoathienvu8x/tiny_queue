@@ -16,6 +16,7 @@ tiny_queue_t* tiny_queue_create() {
 
   queue->head = NULL;
   queue->tail = NULL;
+  queue->shutdown = 0;
 
   if(
     pthread_mutex_init(&queue->mutex, NULL) == 0 &&
@@ -30,7 +31,11 @@ tiny_queue_t* tiny_queue_create() {
 
 /* Push a pointer onto the queue, return -1 on error */
 int tiny_queue_push(tiny_queue_t *queue, void *x) {
-  struct tiny_linked_list_t* new_node =
+  struct tiny_linked_list_t* new_node;
+
+  if (!queue || !x) return -1;
+
+  new_node =
     (struct tiny_linked_list_t*)malloc(sizeof(struct tiny_linked_list_t));
 
   if (new_node == NULL) {
@@ -41,6 +46,13 @@ int tiny_queue_push(tiny_queue_t *queue, void *x) {
   new_node->next = NULL;
 
   pthread_mutex_lock(&queue->mutex);
+
+  if (queue->shutdown) {
+    pthread_mutex_unlock(&queue->mutex);
+    free(new_node);
+    return -1;
+  }
+
   if(queue->head == NULL && queue->tail == NULL){
     queue->head = queue->tail = new_node;
   } else {
@@ -57,8 +69,17 @@ int tiny_queue_push(tiny_queue_t *queue, void *x) {
 void *tiny_queue_pop(tiny_queue_t *queue) {
   struct tiny_linked_list_t* current_head;
   void *data;
+
+  if (!queue) return NULL;
+
   pthread_mutex_lock(&queue->mutex);
-  while(queue->head == NULL) { /* block if buffer is empty */
+
+  if (queue->shutdown) {
+    pthread_mutex_unlock(&queue->mutex);
+    return NULL;
+  }
+
+  while(queue->head == NULL && !queue->shutdown) { /* block if buffer is empty */
     pthread_cond_wait(&queue->wakeup, &queue->mutex);
   }
 
@@ -78,6 +99,13 @@ void *tiny_queue_pop(tiny_queue_t *queue) {
 /* Destroy the queue with all elements */
 int tiny_queue_destroy(tiny_queue_t *queue) {
   struct tiny_linked_list_t *node, *next;
+
+  if (!queue) return -1;
+
+  pthread_mutex_lock(&queue->mutex);
+  queue->shutdown = 1;
+  pthread_mutex_unlock(&queue->mutex);
+
   if (
     pthread_mutex_destroy(&queue->mutex) != 0 ||
     pthread_cond_destroy(&queue->wakeup) != 0
